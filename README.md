@@ -260,49 +260,6 @@ Genesis aims to become an autonomous AI software engineer capable of:
 
 ---
 
-# 🛣 Roadmap
-
-## Phase 1
-
-- ✅ FastAPI Backend
-- ✅ Planner Agent
-- ✅ Developer Agent
-
----
-
-## Phase 2
-
-- Architect Agent
-- File Structure Generation
-- React Project Generation
-
----
-
-## Phase 3
-
-- Code Generator
-- File Writer
-- Build Validator
-
----
-
-## Phase 4
-
-- Automatic Error Fixing
-- GitHub Repository Creation
-- GitHub Pages Deployment
-
----
-
-## Phase 5
-
-- AI Website Editing
-- Multi-page Applications
-- Authentication Support
-- Database Integration
-- Template Library
-
----
 
 # 🤝 Contributing
 

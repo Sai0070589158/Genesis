@@ -33,6 +33,12 @@ Rules:
 6. Every component must have its own JSX file.
 7. Return complete folder paths.
 8. Return complete file paths.
+9. Every item in "files" must represent an actual file.
+10. Every file must have a filename with an appropriate extension.
+11. Never put directory paths in the "files" array.
+12. Paths such as "src/assets/images" and "src/assets/fonts" are folders, not files.
+13. If assets directories are required, put them in the "folders" array.
+14. Do not create placeholder files for empty directories.
 
 Example output:
 

@@ -40,6 +40,22 @@ Rules:
 13. If assets directories are required, put them in the "folders" array.
 14. Do not create placeholder files for empty directories.
 
+Infrastructure files must use exactly these names:
+
+- package.json
+- vite.config.js
+- tailwind.config.cjs
+- postcss.config.cjs
+- index.html
+- src/main.jsx
+- src/App.jsx
+- src/router.jsx
+- src/index.css
+
+Do not use:
+- tailwind.config.js
+- postcss.config.js
+
 Example output:
 
 {{
@@ -60,9 +76,13 @@ Example output:
   "files": [
     "package.json",
     "vite.config.js",
+    "tailwind.config.cjs",
+    "postcss.config.cjs",
     "index.html",
     "src/main.jsx",
     "src/App.jsx",
+    "src/router.jsx",
+    "src/index.css",
     "src/components/Header.jsx",
     "src/pages/Home.jsx"
   ]
@@ -75,4 +95,46 @@ Return JSON only.
 
         data = json.loads(response)
 
+        data = self._normalize_infrastructure_files(data)
+
         return Blueprint(**data)
+
+    def _normalize_infrastructure_files(
+        self,
+        data: dict
+    ) -> dict:
+
+        files = data.get("files", [])
+
+        normalized_files = []
+
+        for file_path in files:
+
+            if file_path == "tailwind.config.js":
+                file_path = "tailwind.config.cjs"
+
+            elif file_path == "postcss.config.js":
+                file_path = "postcss.config.cjs"
+
+            if file_path not in normalized_files:
+                normalized_files.append(file_path)
+
+        required_files = [
+            "package.json",
+            "vite.config.js",
+            "tailwind.config.cjs",
+            "postcss.config.cjs",
+            "index.html",
+            "src/main.jsx",
+            "src/App.jsx",
+            "src/router.jsx",
+            "src/index.css",
+        ]
+
+        for required_file in required_files:
+            if required_file not in normalized_files:
+                normalized_files.append(required_file)
+
+        data["files"] = normalized_files
+
+        return data

@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from backend.app.models.workspace import Workspace
@@ -5,9 +6,24 @@ from backend.app.models.workspace import Workspace
 
 class FileWriter:
 
-    def write(self, workspace: Workspace, project_name: str) -> Path:
+    def write(
+        self,
+        workspace: Workspace,
+        project_name: str
+    ) -> Path:
 
-        project_dir = Path("generated_projects") / project_name
+        project_dir = (
+            Path("generated_projects")
+            / project_name
+        )
+
+        # Remove the previous generated project.
+        if project_dir.exists():
+            print(
+                f"\nCleaning previous project: "
+                f"{project_dir}"
+            )
+            shutil.rmtree(project_dir)
 
         project_dir.mkdir(
             parents=True,
@@ -31,7 +47,10 @@ class FileWriter:
 
             # Prevent a directory from being treated as a file.
             if destination.exists() and destination.is_dir():
-                print(f"Skipping directory listed as file: {file_path}")
+                print(
+                    f"Skipping directory listed as file: "
+                    f"{file_path}"
+                )
                 continue
 
             destination.parent.mkdir(

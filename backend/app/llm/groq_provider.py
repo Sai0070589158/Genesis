@@ -14,9 +14,7 @@ class GroqProvider(LLMProvider):
 
     def __init__(self):
 
-        api_key = os.getenv(
-            "GROQ_API_KEY"
-        )
+        api_key = os.getenv("GROQ_API_KEY")
 
         if not api_key:
             raise ValueError(
@@ -28,7 +26,6 @@ class GroqProvider(LLMProvider):
         )
 
         self.model = "openai/gpt-oss-120b"
-
         self.max_retries = 3
 
     def generate(
@@ -58,7 +55,6 @@ class GroqProvider(LLMProvider):
                         ]
                     )
                 )
-
                 return (
                     response
                     .choices[0]
@@ -66,15 +62,29 @@ class GroqProvider(LLMProvider):
                     .content
                 )
 
+                return content
             except Exception as error:
 
                 error_text = str(error)
+                error_lower = error_text.lower()
 
-                # Retry rate-limit errors.
+                # Daily token quota cannot be fixed bypy -m backend.test_full_generation
+                # short retries. Fail immediately.
+                if (
+                    "tokens per day" in error_lower
+                    or "tpd" in error_lower
+                ):
+                    raise RuntimeError(
+                        "Groq daily token limit reached. "
+                        "Please wait for the quota to reset "
+                        "before generating another project."
+                    ) from error
+
+                # Temporary rate limits can be retried.
                 if (
                     "429" in error_text
-                    or "rate_limit" in error_text.lower()
-                    or "tokens per minute" in error_text.lower()
+                    or "rate_limit" in error_lower
+                    or "tokens per minute" in error_lower
                 ):
 
                     if attempt == self.max_retries:
@@ -83,16 +93,14 @@ class GroqProvider(LLMProvider):
                     wait_time = attempt * 4
 
                     print(
-                        f"\nGroq rate limit reached."
+                        f"\nGroq temporary rate limit reached."
                         f" Waiting {wait_time}s "
                         f"before retry "
                         f"{attempt + 1}/"
                         f"{self.max_retries}..."
                     )
 
-                    time.sleep(
-                        wait_time
-                    )
+                    time.sleep(wait_time)
 
                 else:
                     raise

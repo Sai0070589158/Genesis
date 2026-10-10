@@ -166,8 +166,103 @@ body {
         )
 
         return code
+    
+    def generate_button(self) -> str:
+        return """import React from "react";
+
+export default function Button({
+  children,
+  href,
+  target,
+  rel,
+  onClick,
+  type = "button",
+  className = "",
+  disabled = false,
+  variant = "primary",
+  ...rest
+}) {
+  const variants = {
+    primary: "bg-indigo-600 text-white hover:bg-indigo-700",
+    secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
+    outline: "border border-current bg-transparent text-current hover:bg-gray-100 dark:hover:bg-gray-800",
+  };
+
+  const baseClasses =
+    "inline-flex items-center justify-center rounded-md px-5 py-3 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+
+  const classes = `${baseClasses} ${variants[variant] || variants.primary} ${className}`.trim();
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={target}
+        rel={rel ?? (target === "_blank" ? "noopener noreferrer" : undefined)}
+        className={classes}
+        aria-disabled={disabled || undefined}
+        onClick={disabled ? (event) => event.preventDefault() : undefined}
+        {...rest}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={classes}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+"""
+
+    
+    def generate_theme_toggle(self) -> str:
+        return """import React, { useEffect, useState } from "react";
+
+export default function ThemeToggle() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "light";
+
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme === "light" || savedTheme === "dark") {
+      return savedTheme;
+    }
+
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+      aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      aria-pressed={theme === "dark"}
+      className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+    >
+      {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+    </button>
+  );
+}
+"""
+
 
     def generate_main(self) -> str:
+
         return """import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
@@ -183,6 +278,52 @@ ReactDOM.createRoot(
   </React.StrictMode>
 );
 """
+    def generate_header(self, workspace: Workspace) -> str:
+        if "src/components/NavBar.jsx" in workspace.blueprint.files:
+            nav_import = 'import NavBar from "./NavBar.jsx";'
+            nav_component = "NavBar"
+        elif "src/components/Navigation.jsx" in workspace.blueprint.files:
+            nav_import = 'import Navigation from "./Navigation.jsx";'
+            nav_component = "Navigation"
+        else:
+            nav_import = ""
+            nav_component = ""
+
+        navigation_markup = (
+            f"<{nav_component} />" if nav_component else ""
+        )
+
+        return """import React from "react";
+import { Link } from "react-router-dom";
+__NAV_IMPORT__
+import ThemeToggle from "./ThemeToggle.jsx";
+
+export default function Header() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+        <Link
+          to="/"
+          className="shrink-0 text-xl font-bold text-gray-900 dark:text-gray-100"
+        >
+          MySite
+        </Link>
+
+        <div className="flex items-center gap-3">
+          __NAVIGATION_MARKUP__
+          <ThemeToggle />
+        </div>
+      </div>
+    </header>
+  );
+}
+""".replace(
+            "__NAV_IMPORT__",
+            nav_import,
+        ).replace(
+            "__NAVIGATION_MARKUP__",
+            navigation_markup,
+        )
 
     def generate_app(self) -> str:
         return """import React from "react";
@@ -277,6 +418,13 @@ export default router;
 
         if file_path == "src/index.css":
             return self.generate_index_css()
+        
+        if file_path == "src/components/Button.jsx":
+            return self.generate_button()
+        if file_path == "src/components/Header.jsx":
+            return self.generate_header(workspace)
+        if file_path == "src/components/ThemeToggle.jsx":
+            return self.generate_theme_toggle()
 
         if file_path == "src/main.jsx":
             return self.generate_main()
@@ -403,36 +551,57 @@ IMPORTANT RULES:
 
 28. Use existing files and components where appropriate.
 
+29. When generating src/components/Header.jsx, import ThemeToggle from "./ThemeToggle.jsx" if that file is available.
+
+30. Render ThemeToggle exactly once inside the header layout.
+
+31. When generating src/components/NavBar.jsx or src/components/Navigation.jsx, do not import or render ThemeToggle. The header owns the theme toggle.
+
+32. When generating src/components/Button.jsx, preserve children and ensure caller-provided background and text color classes take precedence over default styling.
+
+33. Do not create a button with an empty visible label when text is provided by its parent.
+
+
 
 GLOBAL APPLICATION ARCHITECTURE:
 
 29. App.jsx is the global application shell.
+42. If ThemeToggle.jsx exists and dark-mode support is appropriate, Header.jsx must render ThemeToggle exactly once.
 
-30. App.jsx is responsible for rendering the global Header,
-    Navigation, and Footer components.
+43. Navigation components must not render ThemeToggle when Header.jsx owns it.
 
-31. Page components such as Home, About, Projects, and Contact
-    must NOT import Header, Navigation, or Footer.
+44. Navigation components must keep desktop navigation links and mobile menu controls functional without creating a second header.
 
-32. Page components must NOT render Header, Navigation, or Footer.
+30. App.jsx renders Header, the page Outlet, and Footer.
 
-33. Page components should contain only their own page-specific
-    content and sections.
+31. Header.jsx owns the complete site header layout.
 
-34. Do not render the same global component more than once.
+32. Header.jsx is responsible for rendering the site logo or brand,
+    Navigation, and ThemeToggle when those components exist.
 
-35. Do not create duplicate navigation bars.
+33. Navigation.jsx must render ONLY navigation links and the
+    minimum markup required to arrange those links.
 
-36. Do not create duplicate footers.
+34. Navigation.jsx must NOT render a logo, brand name, site title,
+    ThemeToggle, or another complete header.
 
-37. Do not create a second application shell inside a page.
+35. Navigation.jsx must NOT create a second full-width header or
+    independent outer navigation bar.
 
-38. If a Layout component exists, it must not cause Header,
-    Navigation, or Footer to be rendered a second time.
+36. Header.jsx must import and render Navigation and ThemeToggle
+    at most once each.
 
-39. Pages must work correctly when rendered through the existing
-    App.jsx and router.jsx structure.
+37. Page components such as Home, About, Projects, and Contact
+    must NOT import or render Header, Navigation, or Footer.
 
+38. Do not render the same global component more than once.
+
+39. Do not create duplicate navigation bars, logos, or theme toggles.
+
+40. Keep all generated files consistent with App.jsx and router.jsx.
+
+41. Navigation may implement a mobile menu, but its mobile menu
+    must contain only navigation links and menu controls.
 
 JSX AND SOURCE CODE RULES:
 
@@ -521,6 +690,15 @@ BUTTON AND LINK CONTRACT:
 67. Components must use Button according to its actual supported props.
 
 68. Do not pass href to a Button implementation that does not support it.
+69. Button components must render their children visibly, including text labels.
+
+70. Button components must merge caller-provided className styles with their base styles without creating conflicting background or text colors.
+
+71. If a caller provides explicit background or text color classes, those styles must take precedence over default variant styles.
+
+72. Never render an empty CTA button when its label is available.
+
+73. Every visible CTA must have readable text, sufficient contrast, and appropriate hover and focus states.
 
 
 ASSET RULES:

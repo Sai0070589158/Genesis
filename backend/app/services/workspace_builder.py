@@ -60,6 +60,29 @@ class WorkspaceBuilder:
         component_files = []
         page_files = []
         other_files = []
+        
+        # Ensure the global theme toggle is generated when a Header exists.
+        has_header = any(
+            path.rsplit("/", 1)[-1].lower() == "header.jsx"
+            for path in workspace.blueprint.files
+        )
+
+        theme_toggle_path = "src/components/ThemeToggle.jsx"
+
+        if (
+            has_header
+            and theme_toggle_path not in workspace.blueprint.files
+        ):
+            workspace.blueprint.files.append(theme_toggle_path)
+
+            if "ThemeToggle" not in workspace.blueprint.components:
+                workspace.blueprint.components.append("ThemeToggle")
+
+            print(
+                "Added required component: "
+                f"{theme_toggle_path}"
+            )
+
 
         for file_path in workspace.blueprint.files:
 

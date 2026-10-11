@@ -167,6 +167,7 @@ body {
 
         return code
     
+    
     def generate_button(self) -> str:
         return """import React from "react";
 
@@ -191,12 +192,48 @@ export default function Button({
   const baseClasses =
     "inline-flex items-center justify-center rounded-md px-5 py-3 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
 
-  const classes = `${baseClasses} ${variants[variant] || variants.primary} ${className}`.trim();
+  const callerClasses = className.split(/\\s+/).filter(Boolean);
+
+  const hasCustomBackground = callerClasses.some(
+    (name) =>
+      /^(?:\\w+:)*bg-/.test(name) ||
+      /^(?:\\w+:)*hover:bg-/.test(name)
+  );
+
+  const hasCustomTextColor = callerClasses.some(
+    (name) =>
+      /^(?:\\w+:)*text-(?:white|black|transparent|current|inherit|[a-z]+-\\d{2,3})(?:\\/\\d+)?$/.test(name)
+  );
+
+  const variantClasses = (variants[variant] || variants.primary)
+    .split(/\\s+/)
+    .filter((name) => {
+      if (
+        hasCustomBackground &&
+        (/^(?:\\w+:)*bg-/.test(name) ||
+          /^(?:\\w+:)*hover:bg-/.test(name))
+      ) {
+        return false;
+      }
+
+      if (
+        hasCustomTextColor &&
+        /^(?:\\w+:)*text-(?:white|black|transparent|current|inherit|[a-z]+-\\d{2,3})(?:\\/\\d+)?$/.test(name)
+      ) {
+        return false;
+      }
+
+      return true;
+    })
+    .join(" ");
+
+  const classes =
+    `${baseClasses} ${variantClasses} ${className}`.trim();
 
   if (href) {
     return (
       <a
-        href={href}
+        href={disabled ? undefined : href}
         target={target}
         rel={rel ?? (target === "_blank" ? "noopener noreferrer" : undefined)}
         className={classes}
@@ -222,6 +259,7 @@ export default function Button({
   );
 }
 """
+
 
     
     def generate_theme_toggle(self) -> str:
@@ -279,19 +317,29 @@ ReactDOM.createRoot(
 );
 """
     def generate_header(self, workspace: Workspace) -> str:
-        if "src/components/NavBar.jsx" in workspace.blueprint.files:
-            nav_import = 'import NavBar from "./NavBar.jsx";'
-            nav_component = "NavBar"
-        elif "src/components/Navigation.jsx" in workspace.blueprint.files:
-            nav_import = 'import Navigation from "./Navigation.jsx";'
-            nav_component = "Navigation"
+        component_paths = {
+            path.replace("\\", "/").lower(): path.replace("\\", "/")
+            for path in workspace.blueprint.files
+        }
+
+        nav_path = None
+
+        for candidate in (
+            "src/components/navbar.jsx",
+            "src/components/navigation.jsx",
+        ):
+            if candidate in component_paths:
+                nav_path = component_paths[candidate]
+                break
+
+        if nav_path:
+            filename = nav_path.rsplit("/", 1)[-1]
+            nav_component = filename[:-4]
+            nav_import = f'import {nav_component} from "./{filename}";'
+            navigation_markup = f"<{nav_component} />"
         else:
             nav_import = ""
-            nav_component = ""
-
-        navigation_markup = (
-            f"<{nav_component} />" if nav_component else ""
-        )
+            navigation_markup = ""
 
         return """import React from "react";
 import { Link } from "react-router-dom";
@@ -318,11 +366,9 @@ export default function Header() {
   );
 }
 """.replace(
-            "__NAV_IMPORT__",
-            nav_import,
+            "__NAV_IMPORT__", nav_import
         ).replace(
-            "__NAVIGATION_MARKUP__",
-            navigation_markup,
+            "__NAVIGATION_MARKUP__", navigation_markup
         )
 
     def generate_app(self) -> str:
@@ -493,229 +539,135 @@ RELEVANT EXISTING FILES:
 
 {context}
 
-IMPORTANT RULES:
+# IMPORTANT RULES
 
 1. Generate ONLY the contents of the requested file.
-
 2. Do not use Markdown code fences.
-
 3. Do not explain anything.
-
 4. Follow the React + Vite + Tailwind CSS architecture.
-
 5. Use correct relative imports.
-
 6. Keep the code clean and production-ready.
-
 7. Keep this file consistent with the relevant existing files.
-
 8. Do not generate any other files.
-
 9. All imports must refer to packages or files that exist.
-
 10. React projects must use React and React DOM correctly.
-
 11. React Router must be used when routing is defined.
-
 12. Do not introduce unnecessary dependencies.
-
 13. Every imported npm package must exist in package.json.
-
 14. Every local import must point to a file in the project.
-
 15. Use JSX syntax for React components.
-
 16. Use Tailwind CSS classes where appropriate.
-
 17. Keep the application responsive.
-
 18. Follow the pages and components defined in the blueprint.
-
 19. Do not generate fake binary content for image files.
-
 20. If the requested file is JavaScript, return valid JavaScript only.
-
 21. If the requested file is JSX, return valid JSX only.
-
 22. Do not include Markdown formatting.
-
 23. Do not introduce a new npm package.
-
 24. Preserve the project's existing technology choices.
-
 25. Do not modify package dependencies.
-
 26. Do not modify Vite, Tailwind, or PostCSS configuration.
-
 27. Do not create configuration files.
-
 28. Use existing files and components where appropriate.
-
 29. When generating src/components/Header.jsx, import ThemeToggle from "./ThemeToggle.jsx" if that file is available.
-
 30. Render ThemeToggle exactly once inside the header layout.
-
 31. When generating src/components/NavBar.jsx or src/components/Navigation.jsx, do not import or render ThemeToggle. The header owns the theme toggle.
-
 32. When generating src/components/Button.jsx, preserve children and ensure caller-provided background and text color classes take precedence over default styling.
-
 33. Do not create a button with an empty visible label when text is provided by its parent.
 
-
-
-GLOBAL APPLICATION ARCHITECTURE:
-
-29. App.jsx is the global application shell.
-42. If ThemeToggle.jsx exists and dark-mode support is appropriate, Header.jsx must render ThemeToggle exactly once.
-
-43. Navigation components must not render ThemeToggle when Header.jsx owns it.
-
-44. Navigation components must keep desktop navigation links and mobile menu controls functional without creating a second header.
-
-30. App.jsx renders Header, the page Outlet, and Footer.
-
-31. Header.jsx owns the complete site header layout.
-
-32. Header.jsx is responsible for rendering the site logo or brand,
-    Navigation, and ThemeToggle when those components exist.
-
-33. Navigation.jsx must render ONLY navigation links and the
-    minimum markup required to arrange those links.
-
-34. Navigation.jsx must NOT render a logo, brand name, site title,
-    ThemeToggle, or another complete header.
-
-35. Navigation.jsx must NOT create a second full-width header or
-    independent outer navigation bar.
-
-36. Header.jsx must import and render Navigation and ThemeToggle
-    at most once each.
-
-37. Page components such as Home, About, Projects, and Contact
-    must NOT import or render Header, Navigation, or Footer.
-
-38. Do not render the same global component more than once.
-
-39. Do not create duplicate navigation bars, logos, or theme toggles.
-
-40. Keep all generated files consistent with App.jsx and router.jsx.
-
-41. Navigation may implement a mobile menu, but its mobile menu
-    must contain only navigation links and menu controls.
-
-JSX AND SOURCE CODE RULES:
-
-40. Use normal JSX quotes such as className="..." and do not escape
-    JSX attribute quotes with backslashes.
-
-41. Never generate sequences such as className=\\"...\\"
-
-42. Never import prop-types or any package that is not present in
-    package.json.
-
-43. Do not use PropTypes.
-
-44. Do not use dependencies that are not already installed.
-
-45. Do not intentionally output literal \\n text into JSX.
-
-46. Use real line breaks between JSX elements.
-
-47. Do not place escaped newline text such as "\\n" between
-    visible JSX elements.
-
-48. Component children must be rendered correctly.
-
-49. If a component receives children, it must render {{children}}
-    where appropriate.
-
-50. Keep component props consistent with how other project files
-    use the component.
-
-
-RUNTIME COMPONENT CONTRACT RULES:
-
-51. Never call .map(), .filter(), .forEach(), .reduce(), or similar
-    array methods on a value that could be undefined or null.
-
-52. Array props must use safe defaults such as:
-
-    ({{ items = [] }})
-
-    or equivalent null-safe logic.
-
-53. Object props must use safe defaults when appropriate.
-
-54. Never assume a required prop exists unless the parent component
-    visibly provides that prop.
-
-55. If a component requires data and there is no backend, API,
-    database, or other data source in the project, provide sensible
-    static fallback/demo data rather than leaving the data undefined.
-
-56. If a parent renders a component that expects props, the parent
-    must provide those props.
-
-57. Keep prop names identical between component definitions and
-    component usage.
-
-58. Do not create a component that requires a prop and then render
-    it without that prop.
-
-59. Before returning the file, mentally verify every component usage
-    in this file against the expected props of the imported component.
-
-60. Components that render collections must remain functional even
-    when their collection prop is omitted.
-
-61. Prefer safe defaults over runtime crashes.
-
-62. Do not access properties of potentially undefined objects without
-    optional chaining, guards, or safe defaults.
-
-63. Do not generate runtime code that assumes browser APIs or data
-    exist when they may not exist.
-
-
-BUTTON AND LINK CONTRACT:
-
-64. If a Button component supports an href prop, it must render an
-    appropriate anchor/link element when href is supplied.
-
-65. If href is not supplied, Button should render a normal button.
-
-66. Button must safely support common props such as:
-    children, onClick, type, className, disabled, href, target, rel.
-
-67. Components must use Button according to its actual supported props.
-
-68. Do not pass href to a Button implementation that does not support it.
-69. Button components must render their children visibly, including text labels.
-
-70. Button components must merge caller-provided className styles with their base styles without creating conflicting background or text colors.
-
-71. If a caller provides explicit background or text color classes, those styles must take precedence over default variant styles.
-
-72. Never render an empty CTA button when its label is available.
-
-73. Every visible CTA must have readable text, sufficient contrast, and appropriate hover and focus states.
-
-
-ASSET RULES:
-
-69. Do not reference local images, fonts, or other assets unless
-    the corresponding file exists in the project.
-
-70. Do not invent paths such as /profile.jpg,
-    /images/project.png, or /assets/image.jpg unless those files
-    are actually present.
-
-71. Do not create fake binary files.
-
-72. Prefer CSS, gradients, icons, or text when no real asset exists.
-
-
-Return ONLY the file contents.
+# GLOBAL APPLICATION ARCHITECTURE
+
+1. App.jsx is the global application shell.
+2. App.jsx renders Header, the page Outlet, and Footer.
+3. Header.jsx owns the complete site header layout.
+4. Header.jsx is responsible for rendering the site logo or brand, navigation, and ThemeToggle when those components exist.
+5. If ThemeToggle.jsx exists and dark-mode support is appropriate, Header.jsx must render ThemeToggle exactly once.
+6. Navigation components must not render ThemeToggle when Header.jsx owns it.
+7. Navigation components must keep desktop navigation links and mobile menu controls functional without creating a second header.
+8. Navigation components must render ONLY navigation links and the minimum markup required to arrange those links.
+9. Navigation components must NOT render a logo, brand name, site title, ThemeToggle, or another complete header.
+10. Navigation components must NOT create a second full-width header or independent outer navigation bar.
+11. Do not render the same global component more than once.
+12. Do not create duplicate navigation bars, logos, or theme toggles.
+13. Keep all generated files consistent with App.jsx and router.jsx.
+14. Navigation may implement a mobile menu, but its mobile menu must contain only navigation links and menu controls.
+
+# NAVIGATION BACKGROUND CONSISTENCY
+
+
+1. Navigation components must not introduce a separate background strip or bar that conflicts with the global Header background.
+2. Navigation backgrounds must be transparent by default so the Header background remains visible behind the navigation links.
+3. Do not add independent solid background classes such as bg-white or bg-gray-100 to the desktop navigation container unless the requested design explicitly requires them.
+4. The navigation container must not introduce an additional full-width background when the Header already provides the background.
+5. Preserve the existing navigation layout, link labels, spacing, responsive behavior, and functionality unless the requested design requires a change.
+6. Do not change button styles, button colors, button sizes, or button behavior when correcting navigation backgrounds.
+7. Do not change unrelated page components or styling to fix a navigation background issue.
+8. When generating Header.jsx and its navigation component, inspect the relevant existing files and ensure their background classes work together.
+9. Respect the requested design. If the user explicitly requests a separate navigation background, implement that request rather than forcing transparency.
+10. Desktop navigation containers must not use standalone background classes such as bg-white, bg-gray-900, bg-gray-100, or dark:bg-* when they sit inside the Header. They must inherit the Header background through transparency.
+11. Apply background colors only to the Header container unless the user explicitly requests a separate navigation background.
+12. Keep mobile dropdown styling separate only when needed for readability; do not add a desktop background strip.
+
+# JSX AND SOURCE CODE RULES
+
+1. Use normal JSX quotes such as className="..." and do not escape JSX attribute quotes with backslashes.
+2. Never generate sequences such as className=\\\\"...\\\\"
+3. Never import prop-types or any package that is not present in package.json.
+4. Do not use PropTypes.
+5. Do not use dependencies that are not already installed.
+6. Do not intentionally output literal \\n text into JSX.
+7. Use real line breaks between JSX elements.
+8. Do not place escaped newline text such as "\\\\n" between visible JSX elements.
+9. Component children must be rendered correctly.
+10. If a component receives children, render {{children}} where appropriate.
+11. Keep component props consistent with how other project files use the component.
+
+# RUNTIME COMPONENT CONTRACT RULES
+
+1. Never call .map(), .filter(), .forEach(), .reduce(), or similar array methods on a value that could be undefined or null.
+2. Array props must use safe defaults such as ({{ items = [] }}) or equivalent null-safe logic.
+3. Object props must use safe defaults when appropriate.
+4. Never assume a required prop exists unless the parent visibly provides that prop.
+5. If a component requires data and there is no backend, API, database, or other data source in the project, provide sensible static fallback/demo data rather than leaving the data undefined.
+6. If a parent renders a component that expects props, the parent must provide those props.
+7. Keep prop names identical between component definitions and component usage.
+8. Do not create a component that requires a prop and then render it without that prop.
+9. Before returning the file, mentally verify every component usage in this file against the expected props of the imported component.
+10. Components that render collections must remain functional even when their collection prop is omitted.
+11. Prefer safe defaults over runtime crashes.
+12. Do not access properties of potentially undefined objects without optional chaining, guards, or safe defaults.
+13. Do not generate runtime code that assumes browser APIs or data exist when they may not exist.
+
+# BUTTON AND LINK CONTRACT
+
+1. If a Button component supports an href prop, it must render an appropriate anchor/link element when href is supplied.
+2. If href is not supplied, Button should render a normal button.
+3. Button must safely support common props such as children, onClick, type, className, disabled, href, target, and rel.
+4. Components must use Button according to its actual supported props.
+5. Do not pass href to a Button implementation that does not support it.
+6. Button components must render their children visibly, including text labels.
+7. Button components must merge caller-provided className styles with their base styles without creating conflicting background or text colors.
+8. If a caller provides explicit background or text color classes, those styles must take precedence over default variant styles.
+9. Never render an empty CTA button when its label is available.
+10. Every visible CTA must have readable text, sufficient contrast, and appropriate hover and focus states.
+
+# ASSET RULES
+
+1. Do not reference local images, fonts, or other assets unless the corresponding file exists in the project.
+2. Do not invent paths such as /profile.jpg, /images/project.png, or /assets/image.jpg unless those files are actually present.
+3. Do not create fake binary files.
+4. Prefer CSS, gradients, icons, or text when no real asset exists.
+
+# FINAL VALIDATION
+
+Before returning the requested file:
+
+1. Verify that all imports refer to existing files or installed packages.
+2. Verify that component usage matches the component's supported props.
+3. Verify that the file is consistent with the existing application architecture.
+4. Verify that navigation does not create a duplicate header or conflicting background.
+5. Verify that button styling and behavior have not been changed unnecessarily.
+6. Return ONLY the file contents.
 """
 
         response = self.llm.generate(
